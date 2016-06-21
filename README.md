@@ -1,2 +1,2 @@
-# Lisp-games
-My little polygon for lisp adventures (games and experiments)
+## Description
+# sorry, no items yet
