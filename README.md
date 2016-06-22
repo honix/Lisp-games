@@ -3,7 +3,7 @@
 ![anim](https://github.com/honix/Lisp-games/blob/master/Tanks/tank-animation.gif)
 I remember old classic game about tank fight. Coolest feature was destructable terrain and physics. Unfortenatly i cant find this game anymore, but i made a copy! This game for 2 people.
 
-Made with ![Sketch](https://github.com/vydd/sketch)
+Made with [Sketch](https://github.com/vydd/sketch)
 
 
 # How to run
