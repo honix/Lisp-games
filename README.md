@@ -2,7 +2,7 @@
 ## Tree
 ![anim](https://github.com/honix/Lisp-games/blob/master/Tree/tree-animation.gif)
 
-Simple recursive tree genaertor. Use mouse to animate.  
+Simple recursive tree generator. Use mouse to animate.  
 
 Made with [Sketch](https://github.com/vydd/sketch)
 ## Tanks
