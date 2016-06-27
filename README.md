@@ -1,4 +1,10 @@
 # Descriptions
+## Tic-tac
+![anim](https://github.com/honix/Lisp-games/blob/master/Tic-tac/tic-tac-animation.gif)
+
+Playing against evil computer.
+
+Made with [Sketch](https://github.com/vydd/sketch)
 ## Tree
 ![anim](https://github.com/honix/Lisp-games/blob/master/Tree/tree-animation.gif)
 
