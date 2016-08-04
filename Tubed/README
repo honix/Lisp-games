@@ -1,0 +1,17 @@
+~~~ Comments about Lisp
+
+As a painter draws a line and experimenting on fly with it by strongly connected with his work. With lisp i feel the same. So, how can i paint when my eyes covered, and i can see only by doing step back..
+
+~~ Windows
+
+Run ...exe
+
+~~ Linux
+
+Before run ... check that you dependencies ready
+
+~ To install dependencies on Ubuntu (and Debian family):
+sudo apt-get install libffi6 libsdl2 libsdl2-image libsdl2-ttf libsdl2-mixer
+
+~ To install dependencies on Fedora:
+sudo dnf install libffi SDL2 SDL2_image SDL2_ttf SDL2_mixer
