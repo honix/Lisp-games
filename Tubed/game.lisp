@@ -225,7 +225,7 @@
 					       0.5
 					       1)
 				     "white-gate.png")
-				   "test4.png"))
+				   "gate.png"))
 		 0 0 zoom *position* 30)))
 
     ;; draw the car
