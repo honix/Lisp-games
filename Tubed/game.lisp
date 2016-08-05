@@ -6,11 +6,11 @@
 
 (ql:quickload '(:cl-opengl :sdl2-image :sdl2-ttf :sdl2-mixer))
 
-(defpackage :abra
+(defpackage :tubed-game
   (:use :cl :cl-opengl :sdl2)
   (:export :main :save))
 
-(in-package :abra)
+(in-package :tubed-game)
 
 (load (merge-pathnames "utils.lisp"))
 
@@ -37,39 +37,57 @@
 (defparameter *controls* 'controls) ; contains inputs
 
 ;; game
+(defconstant +count+ 200) ; tube segments
+(defconstant +car-position+ 15)
+(defconstant +end-position+ 500)
+
+(defparameter *speed* 0.0)
+(defparameter *accel* 0.0)
+(defparameter *position* 0.0)
+(defparameter *next-position* 10.0)  
+(defparameter *turn* 0.0)
+(defparameter *rotate* 0.0)
+(defparameter *tubed-list* #())
+(defparameter *coins* 0)
+
 (defun reset ()
-  (defconstant +count+ 200) ; tube segments
-  (defparameter *speed* 0.0)
-  (defparameter *accel* 0.0)
-  (defparameter *position* 0.0)
-  (defconstant +car-position+ 15)
-  (defparameter *turn* 0.0)
-  (defparameter *rotate* 0.0)
-  (defparameter *tubed-list* #())
-  (defparameter *coins* 0))
-
-(reset)
-
+  (setf *time* 0.0
+	*speed* 0.0
+	*accel* 0.0
+	*position* 0.0
+	*next-position* 10.0
+	*turn* 0.0
+	*rotate* 0.0
+	*tubed-list* #()
+	*coins* 0))
 
 (defun level-blocks (variant)
   (let* ((random-angle (random +2pi+))
 	 (list (case variant
-		 (-1 (list
-		      (make-tubed
-		       :type :coin
-		       :angle (* (/ (- *rotate* 180) 360) +2pi+)
-		       :position 0.9
-		       :speed (- (random 0.01))
-		       :rotate (- (random 0.1) 0.05))))
+		 (:finish (loop for i to 15 collect
+			       (make-tubed
+				:type :finish
+				:angle (+ (/ i 2.5) random-angle))))
+		 (:drop (list
+			 (make-tubed
+			  :type :coin
+			  :angle (* (/ (- *rotate* 180) 360) +2pi+)
+			  :position 0.9
+			  :speed (- (random 0.01))
+			  :rotate (- (random 0.1) 0.05))))
 		 (0 (loop for i to 5 collect
 			 (make-tubed
 			  :type :block
-			  :angle (+ (/ i 3.5) random-angle)
-			  :position 0.0)))
+			  :angle (+ (/ i 3.5) random-angle))))
 		 (1 (loop for i to 5 collect
 			 (make-tubed
 			  :type :coin
 			  :angle (+ (/ i 10) random-angle)
+			  :position (- (/ i 10) 0.5))))
+		 (2 (loop for i to 5 collect
+			 (make-tubed
+			  :type :coin
+			  :angle (+ (/ i -10) random-angle)
 			  :position (- (/ i 10) 0.5)))))))
     (make-array (length list)
 		:initial-contents list)))
@@ -77,14 +95,14 @@
 (defun type-texture (type)
   (case type
     (:block "block.png")
-    (:coin "brackets.png")))
+    (:coin "brackets.png")
+    (:finish "finish.png")
+    (t "block.png")))
 
 
 (defun punch-anglep (angle)
   "Check if object same angle with car"
-  (let ((t-angle (mod (* (/ (- angle +pi+)
-			    +2pi+)
-			 360)
+  (let ((t-angle (mod (* (/ (- angle +pi+) +2pi+) 360)
 		      360)))
     (when (> (+ t-angle 20) *rotate* (- t-angle 20))
       (- *rotate* t-angle))))
@@ -92,50 +110,56 @@
 (defun collision (tubed)
   "Check collision and do something with it"
   (with-slots (type angle position) tubed
-    (let ((car-pos (- 1 (/ +car-position+ +count+)))
-	  (angle (punch-anglep angle)))
-      (when (and (> (+ car-pos 0.02) position car-pos) angle)
+    (let ((car-pos (- 1 (/ +car-position+ +count+))))
+      (when (and (> (+ car-pos 0.05) position car-pos)
+		 (punch-anglep angle))
 	(case type
 	  (:block
 	    (setf *speed* -0.05)
 	    (when (plusp *coins*)
 	      (decf *coins* 1) :lost))
 	  (:coin
-	    (incf *coins* 1) :delete))))))
+	   (incf *coins* 1) :delete)
+	  (:finish
+	   (setf *scene* :menu)))))))
 			
 
-(let ((next-position 10))
-  (defun update-tubed (tube)
-    "Make new tubeds and increase positions"
-    ;; delete out-of-game tubeds
-    (let ((out-of-game (position-if
-			(lambda (tubed)
-			  (> (slot-value tubed 'position) 1.5))
-			tube :from-end t)))
-      (when out-of-game
-	(setf tube (subseq tube 0 out-of-game))))
-    
-    ;; increase positions and check car-collision
-    (let ((current-speed *speed*))
-      (loop for tubed across tube do
-	   (with-slots (position speed angle rotate) tubed
-	     (incf position (+ (/ current-speed 20)
-			       speed))
-	     (incf angle rotate))
-	   (case (collision tubed)
-		 (:delete (setf tube (delete tubed tube)))
-		 (:lost (setf tube (concatenate 'vector
-						(level-blocks -1)
-						tube))))))
-    
-    ;; add new blocks
-    (if (> *position* next-position)
-	(progn
-	  (setf next-position (+ *position* 10))
-	  (concatenate 'vector
-		       (level-blocks (random 2))
-		       tube))
-	tube)))
+
+(defun update-tubed (tube)
+  "Make new tubeds and increase positions"
+  ;; delete out-of-game tubeds
+  (let ((out-of-game (position-if
+		      (lambda (tubed)
+			(> (slot-value tubed 'position) 1.5))
+		      tube :from-end t)))
+    (when out-of-game
+      (setf tube (subseq tube 0 out-of-game))))
+  
+  ;; increase positions and check car-collision
+  (let ((current-speed *speed*))
+    (loop for tubed across tube do
+	 (with-slots (position speed angle rotate) tubed
+	   (incf position (+ (/ current-speed 20)
+			     speed))
+	   (incf angle rotate))
+	 (case (collision tubed)
+	   (:delete (setf tube (delete tubed tube)))
+	   (:lost (setf tube (concatenate 'vector
+					  (level-blocks :drop)
+					  tube))))))
+  
+  ;; add new blocks
+  (if (> *position* *next-position*)
+      (progn
+	(setf *next-position* (+ *position* 20))
+	(if (> *position* 400)
+	    (concatenate 'vector
+			 (level-blocks :finish)
+			 tube)
+	    (concatenate 'vector
+			 (level-blocks (random 3))
+			 tube)))
+      tube))
 
 (defun trail (f position)
   "Returns organic shape for tube"
@@ -186,13 +210,13 @@
 	   (loop for tubed across *tubed-list* do
 		(with-slots (type angle position) tubed
 		  (when (>= (+ rev (/ step count)) position rev)
-		    (when (eq type :coin)
+		    (when (or (eq type :coin) (eq type :finish))
 		      (gl:color 1 1 1)
 		      (gl:blend-func :src-alpha :one))
 		    (quad (load-texture (type-texture type))
 			  (* (sin angle) 2.1)
 			  (* (cos angle) 2.1)
-			  zoom (* (/ angle +2pi+) -360) 6.0))))
+			  zoom (* (/ angle +2pi+) -360) 6))))
 	   ;; tube segment
 	   (gl:blend-func :src-alpha :one-minus-src-alpha)
 	   (quad (load-texture (if (> tunel 0.99)
@@ -202,7 +226,7 @@
 					       1)
 				     "white-gate.png")
 				   "test4.png"))
-		 0.0 0.0 zoom *position* 30.0)))
+		 0 0 zoom *position* 30)))
 
     ;; draw the car
     (gl:load-identity)
@@ -218,60 +242,60 @@
       (gl:translate (* *turn* 0.2) 0 0)
       (gl:rotate (* (+ *turn* tx) 5) 0 1 -1)
       (quad (load-texture "car-front.png") (- shift)
-	    (+ -1.3 (* ty rotated 0.1)) -1.5 180.0 5.0)
+	    (+ -1.3 (* ty rotated 0.1)) -1.5 180 5)
       (quad (load-texture "car-middle.png") 0.0
-	    (+ -1.3 (* ty rotated 0.05)) -1.5 180.0 5.0)
+	    (+ -1.3 (* ty rotated 0.05)) -1.5 180 5)
       (quad (load-texture "car-back.png") shift
-	    -1.4 -1.3 180.0 5.0)))
+	    -1.4 -1.3 180 5)))
 
-  ;;; gui
+  ;; gui
   (gl:load-identity)
   (gl:color 1 1 1)
   (text (make-text "parenthesis")
-	-0.50 0.85 0.5 0.0)
+	-0.50 0.85 0.5 0)
   (text (make-text (write-to-string (floor *coins*)))
-	0.0 0.80 1.0 (* (sin (+ *time* *coins*)) 12.0))
+	0.0 0.80 1.0 (* (sin (+ *time* *coins*)) 12))
   (text (make-text "dist")
-	0.80 -0.70 0.5 0.0)
-  (text (make-text (write-to-string (floor *position*)))
-	1.1 -0.70 0.5 (* (cos *time*) 12.0))
+	0.80 -0.70 0.5 0)
+  (text (make-text (write-to-string (- +end-position+ -30
+				       (floor *position*))))
+	1.1 -0.70 0.5 (* (cos *time*) 12))
   (text (make-text "time")
-	0.80 -0.85 0.5 0.0)
+	0.80 -0.85 0.5 0)
   (text (make-text (write-to-string (floor *time*)))
-	1.1 -0.85 0.5 (* (sin *time*) 12.0)))
+	1.1 -0.85 0.5 (* (sin *time*) 12)))
 
 
 (defun menu-screen (delta)
   "Update and render for menu"
   (incf *time* delta)
-  (gl:clear-color 0 0 0 0.1)
   (gl:clear :color-buffer-bit)
 
   (gl:color 1 1 1 0.05)
   (loop for i to 360 by 25 do
        (quad (load-texture "brackets.png")
-	     0.0 0.0 0.0 (+ *time* i) 30.0))
+	     0 0 0 (+ *time* i) 30))
 
   (gl:color 1 1 1 0.4)
   (loop for i to +2pi+ by 2 do
        (text (make-text "TUBED")
 	     (cos (+ i *time*))
 	     0.6
-	     2.0 0.0))
+	     2 0))
 
-  (gl:color 1.0 0.5 0.5)
+  (gl:color 1 0.5 0.5)
   (text (make-text "mission: collect parenthesis and avoid blocks")
-	0.0 0.3 0.4 0.0)
+	0 0.3 0.4 0)
   (gl:color 1 1 1)
   (text (make-text "press SPACE to ride")
-	0.0 -0.15 0.7 0.0)
+	0 -0.15 0.7 0)
   (gl:color 1 0.5 0.5)
   (text (make-text "controll - arrow keys")
-	0.0 -0.6 0.4 0.0)
+	0 -0.6 0.4 0)
   (text (make-text "go fullscreen - f11")
-	0.0 -0.7 0.4 0.0)
+	0 -0.7 0.4 0)
   (text (make-text "exit (pause) - esc")
-	0.0 -0.8 0.4 0.0))
+	0 -0.8 0.4 0))
 
 
 (defun idler (window)
@@ -309,7 +333,7 @@
     (sdl2-mixer:open-audio 22050 :s16sys 1 1024)
     (sdl2-mixer:allocate-channels 1)
     (sdl2-mixer:volume 0 128)
-    (with-window (window :title "abracadabra"
+    (with-window (window :title "Tubed"
 			 :w *screen-width*
 			 :h *screen-height*
 			 :flags '(:shown :resizable :opengl))
@@ -337,7 +361,9 @@
 			  ((:scancode-right :scancode-kp-6)
 			   (setf (get *controls* 'right) t))
 			  (:scancode-space
-			   (setf *scene* :game))))
+			   (when (eq *scene* :menu)
+			     (setf *scene* :game)
+			     (reset)))))
 	  (:keyup       (:keysym keysym)
 			(case (scancode-symbol
 			       (scancode-value keysym))

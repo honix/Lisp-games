@@ -1,4 +1,4 @@
-(in-package :abra)
+(in-package :tubed-game)
 
 (defun path (file-name)
   (merge-pathnames (concatenate 'string "media/" file-name)))
@@ -78,13 +78,12 @@
 
 (defmacro defshape (fname &body body)
   `(defun ,fname (texture x y z rotation
-		  scale-x &optional (scale-y 0.0))
-     (declare (single-float x y z rotation scale-x scale-y))
+		  scale-x &optional scale-y)
      (gl:bind-texture :texture-2d texture)
      (gl:push-matrix)
      (gl:translate x y z)
      (gl:rotate rotation 0 0 1)
-     (gl:scale scale-x (if (= scale-y 0.0) scale-x scale-y) 1)
+     (gl:scale scale-x (or scale-y scale-x) 1)
      ,@body
      (gl:end)
      (gl:pop-matrix)))
@@ -106,8 +105,8 @@
 
 (defun text (text-texture x y size rotation)
   (with-slots (texture width heigth) text-texture
-    (quad texture x y 0.0 rotation (* width size)
-                         	 (* heigth size))))
+    (quad texture x y 0.0
+	  rotation (* width size) (* heigth size))))
 
 ;;;
 ;;; window-utils
