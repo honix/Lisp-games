@@ -53,7 +53,7 @@
   (clrhash *texture-hash*))
 
 (defun load-texture (file-name &optional (format :rgba)
-				         (filter :nearest))
+				         (filter :linear))
   (or (gethash file-name *texture-hash*)
       (progn
 	(when (> (hash-table-count *texture-hash*) 64)
