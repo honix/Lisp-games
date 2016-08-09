@@ -2,7 +2,7 @@
 ## Tubed
 ![anim](https://img.itch.io/aW1hZ2UvNzkyNzkvMzcxNDMyLmdpZg==/347x500/e27Sgx.gif)
 
-Game done for August 2016 Lisp Game Jam
+Game done for [August 2016 Lisp Game Jam](https://itch.io/jam/august-2016-lisp-game-jam)
 
 Download here: https://phuda.itch.io/tubed
 
