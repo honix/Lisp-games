@@ -1,13 +1,13 @@
 ;;
-;; Visual List Editor
+;; SDL OpenGL template
 ;;
 
 (ql:quickload '(:cl-opengl :sdl2-ttf :sdl2-image))
 
-(defpackage :vle
+(defpackage :template
   (:use :cl :cl-opengl :sdl2))
 
-(in-package :vle)
+(in-package :template)
 
 (load (merge-pathnames "utils.lisp"))
 

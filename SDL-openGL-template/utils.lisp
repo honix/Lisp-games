@@ -1,4 +1,4 @@
-(in-package :vle)
+(in-package :template)
 
 (defun path (file-name)
   (merge-pathnames (concatenate 'string "media/" file-name)))
