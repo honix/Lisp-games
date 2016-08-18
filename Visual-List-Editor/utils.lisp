@@ -131,6 +131,13 @@
   (gl:tex-coord 1 1) (gl:vertex  1  1)
   (gl:tex-coord 0 1) (gl:vertex -1  1))
 
+(define-shape quad-lines
+  (gl:begin :line-loop)
+  (gl:tex-coord 0 0) (gl:vertex -1 -1)
+  (gl:tex-coord 1 0) (gl:vertex  1 -1)
+  (gl:tex-coord 1 1) (gl:vertex  1  1)
+  (gl:tex-coord 0 1) (gl:vertex -1  1))
+
 (defun simple-line (x1 y1 x2 y2)
   (gl:bind-texture :texture-2d 0)
   (gl:begin :lines)
