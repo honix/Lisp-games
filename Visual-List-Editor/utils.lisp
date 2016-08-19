@@ -37,28 +37,25 @@
 
 (defun make-text (string)
   (or (gethash string *text-hash*)
-      (progn
-	(when (> (hash-table-count *text-hash*) 64)
-	  (clean-text-hash))
-       (let* ((font         (sdl2-ttf:open-font
-			     (path "saxmono.ttf") 30))
-	      (texture      (car (gl:gen-textures 1)))
-	      (surface      (sdl2-ttf:render-utf8-blended
-			     font string 255 255 255 0))
-	      (surface-w    (surface-width surface))
-	      (surface-h    (surface-height surface))
-	      (surface-data (surface-pixels surface)))
-	 (gl:bind-texture  :texture-2d texture)
-	 (gl:tex-parameter :texture-2d :texture-min-filter :linear)
-	 (gl:tex-parameter :texture-2d :texture-mag-filter :linear)
-	 (gl:tex-image-2d  :texture-2d 0 :rgba surface-w surface-h 0
-			   :rgba :unsigned-byte surface-data)
-	 (free-surface surface)
-	 (sdl2-ttf:close-font font)
-	 (setf (gethash string *text-hash*)
-	       (make-text-texture :texture texture
-				  :width (/ surface-w 30)
-				  :heigth (/ surface-h 30 -1)))))))
+      (let* ((font         (sdl2-ttf:open-font
+			    (path "saxmono.ttf") 30))
+	     (texture      (car (gl:gen-textures 1)))
+	     (surface      (sdl2-ttf:render-utf8-blended
+			    font string 255 255 255 0))
+	     (surface-w    (surface-width surface))
+	     (surface-h    (surface-height surface))
+	     (surface-data (surface-pixels surface)))
+	(gl:bind-texture  :texture-2d texture)
+	(gl:tex-parameter :texture-2d :texture-min-filter :linear)
+	(gl:tex-parameter :texture-2d :texture-mag-filter :linear)
+	(gl:tex-image-2d  :texture-2d 0 :rgba surface-w surface-h 0
+			  :rgba :unsigned-byte surface-data)
+	(free-surface surface)
+	(sdl2-ttf:close-font font)
+	(setf (gethash string *text-hash*)
+	      (make-text-texture :texture texture
+				 :width (/ surface-w 30)
+				 :heigth (/ surface-h 30 -1))))))
 
 
 (defparameter *texture-hash* (make-hash-table :test #'equal))
@@ -70,49 +67,44 @@
   (clrhash *texture-hash*))
 
 (defun load-texture (file-name &optional (format :rgba)
-				         (filter :linear))
+				 (filter :linear))
   (or (gethash file-name *texture-hash*)
-      (progn
-	(when (> (hash-table-count *texture-hash*) 64)
-	  (clean-texture-hash))
-       (let* ((texture      (car (gl:gen-textures 1)))
-	      (surface      (sdl2-image:load-image (path file-name)))
-	      (surface-w    (surface-width surface))
-	      (surface-h    (surface-height surface))
-	      (surface-data (surface-pixels surface)))
-	 (gl:bind-texture  :texture-2d texture)
-	 (gl:tex-parameter :texture-2d :texture-min-filter filter)
-	 (gl:tex-parameter :texture-2d :texture-mag-filter filter)
-	 (gl:tex-image-2d  :texture-2d 0 :rgba surface-w surface-h 0
-			   format ; :bgr - bmp  :rgba - png
-			   :unsigned-byte surface-data)
-	 (free-surface surface)
-	 (setf (gethash file-name *texture-hash*) texture)))))
+      (let* ((texture      (car (gl:gen-textures 1)))
+	     (surface      (sdl2-image:load-image (path file-name)))
+	     (surface-w    (surface-width surface))
+	     (surface-h    (surface-height surface))
+	     (surface-data (surface-pixels surface)))
+	(gl:bind-texture  :texture-2d texture)
+	(gl:tex-parameter :texture-2d :texture-min-filter filter)
+	(gl:tex-parameter :texture-2d :texture-mag-filter filter)
+	(gl:tex-image-2d  :texture-2d 0 :rgba surface-w surface-h 0
+			  format ; :bgr - bmp  :rgba - png
+			  :unsigned-byte surface-data)
+	(free-surface surface)
+	(setf (gethash file-name *texture-hash*) texture))))
 
 ;;;
 ;;; drawing
 ;;;
 
 (defmacro define-textured (fname &body body)
-  `(defun ,fname (texture x y rotation
-		  scale-x &optional scale-y)
+  `(defun ,fname (texture x y rotation scale-x scale-y)
      (gl:bind-texture :texture-2d texture)
      (gl:push-matrix)
      (gl:translate x y 0)
      (gl:rotate rotation 0 0 1)
-     (gl:scale scale-x (or scale-y scale-x) 1)
+     (gl:scale scale-x scale-y 1)
      ,@body
      (gl:end)
      (gl:pop-matrix)))
 
 (defmacro define-shape (fname &body body)
-  `(defun ,fname (x y rotation
-		  scale-x &optional scale-y)
+  `(defun ,fname (x y rotation scale-x scale-y)
      (gl:bind-texture :texture-2d 0)
      (gl:push-matrix)
      (gl:translate x y 0)
      (gl:rotate rotation 0 0 1)
-     (gl:scale scale-x (or scale-y scale-x) 1)
+     (gl:scale scale-x scale-y 1)
      ,@body
      (gl:end)
      (gl:pop-matrix)))

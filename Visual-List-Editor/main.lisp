@@ -14,6 +14,7 @@
 (defstruct node
   name
   x y
+  width
   in-focus
   selected
   message
@@ -21,14 +22,26 @@
   parents
   childs)
 
+(defun node-update-width (node)
+  (setf (node-width node)
+	(+ (* (length (node-name node)) *node-width-char*)
+	   *node-width-bumps*))
+  node)
+
+(defun create-node (&key name x y)
+  (let ((node (make-node :name name :x x :y y)))
+    (node-update-width node)))
+	     
 ;; main
 (defparameter *time* 0.0)
 (defparameter *delta* 0.0)
 (defparameter *screen-width* 800)
 (defparameter *screen-height* 600)
 ;; travel
-(defparameter *position* (list 0 0))
-(defparameter *real-position* (list 0 0))
+(defparameter *position-x* 0)
+(defparameter *position-y* 0)
+(defparameter *real-position-x* 0)
+(defparameter *real-position-y* 0)
 (defparameter *zoom* 1.0)
 (defparameter *real-zoom* 1.0)
 ;; *nodes* visual
@@ -38,7 +51,20 @@
 ;; *nodes*
 (defparameter *new-node-name* "")
 (defparameter *nodes* ())
-;(defparameter *in-focus-nodes* ())
+;; test lots
+(defparameter *nodes* (loop for i to 2000 collect
+			   (create-node
+			    :name
+			    (concatenate 'string
+					 (list (code-char (+ (random 20) 97)))
+					 (list (code-char (+ (random 20) 97)))
+					 (list (code-char (+ (random 20) 97)))
+					 (list (code-char (+ (random 20) 97)))
+					 (list (code-char (+ (random 20) 97))))
+			    :x (- (random 50.0) 25)
+			    :y (- (random 50.0) 25))))
+;; end test lots
+(defparameter *nodes-at-screen* ())
 ;; inputs
 (defparameter *mouse-x* 0)
 (defparameter *mouse-y* 0)
@@ -47,7 +73,26 @@
 (defparameter *mouse-right* nil)
 
 ;;
+;; think only at screen 
 ;;
+
+(defun node-at-screen (node)
+  (with-slots (x y) node
+    (let ((asp (/ *screen-width* *screen-height*)))
+      (and
+       (< (- *position-x* (* (/ *zoom*) asp) 1)
+	  x
+	  (+ *position-x* (* (/ *zoom*) asp) 1))
+       (< (- *position-y* (/ *zoom*) 1)
+	  y
+	  (+ *position-y* (/ *zoom*) 1))))))
+
+(defun repose ()
+  (setf *nodes-at-screen*
+	(remove-if-not #'node-at-screen *nodes*)))
+
+;;
+;; node draw functions
 ;;
 
 (defun draw-wires (node)
@@ -64,42 +109,41 @@
 	 (+ (node-x child) (* (- x (node-x child)) pulse-out))
 	 (+ (node-y child) (* (- y (node-y child)) pulse-out)))))))
 
-(defparameter err nil)
-
 (defun draw-node (node)
-  (with-slots (name x y in-focus selected message error parents) node
+  (with-slots (name x y width in-focus
+		    selected message error parents) node
     (gl:push-matrix)
     (gl:translate x y 0)
     (cond
       (in-focus       (gl:color 0   0.2 0.5))
       ((null parents) (gl:color 0.5 0.0 0.5))
       (t              (gl:color 0.2 0.2 0.2)))
-    (quad-shape 0 0 0
-		(+ (* (length name) *node-width-char*)
-		   *node-width-bumps*)
-		*node-height*)
+    (quad-shape 0 0 0 width *node-height*)
     (when selected
       (gl:color 0 1 1)
       (quad-lines 0 0 0
-		  (+ (+ (* (length name) *node-width-char*)
-		     *node-width-bumps*) 0.02)
+		  (+ width         0.02)
 		  (+ *node-height* 0.02)))
     (gl:color 1 1 1)
-    (text name 0 0 0.04 0)
-    (when message
-      (if error
-	  (gl:color 1 1 0 0.5)	
-	  (gl:color 0 1 1))
-      (text message 0 0.1 0.04 0))
+    (when (> *zoom* 0.3)
+      (text name 0 0 0.04 0)
+      (when message
+	(if error
+	    (gl:color 1 1 0 0.5)	
+	    (gl:color 0 1 1))
+	(text message 0 0.1 0.04 0)))
     (gl:pop-matrix)))
 
+;;
+;; nodes utils
+;;
+
 (defun mouse-at-node-p (node)
-  (with-slots (name x y) node
-    (let ((half-width  (+ (* (length name) *node-width-char*)
-			  *node-width-bumps*))
-	  (half-height *node-height*))
-      (and (< (- x half-width)  *mouse-x* (+ x half-width))
-	   (< (- y half-height) *mouse-y* (+ y half-height))))))
+  (with-slots (x y width) node
+    (let ((w width)
+	  (h *node-height*))
+      (and (< (- x w) *mouse-x* (+ x w))
+	   (< (- y h) *mouse-y* (+ y h))))))
 
 (defun make-connection (parent child)
   (when (not (eq parent child))
@@ -126,18 +170,23 @@
 
 (defun insert-new-node ()
   (when (not (string= *new-node-name* ""))
-    (let ((new-node (make-node :name *new-node-name*
-			       :x (first *position*)
-			       :y (second *position*))))
+    (let ((new-node (create-node :name *new-node-name*
+				 :x *position-x*
+				 :y *position-y*)))
       (push new-node *nodes*)
       (setf *new-node-name* "")
       (let ((selected-nodes (remove-if-not #'node-selected *nodes*)))
 	(cond ((< (length selected-nodes) 1)
 	       (setf (node-selected new-node) t)
-	       (incf (second *position*) -0.2))
+	       (incf *position-y* -0.2))
 	      ((= (length selected-nodes) 1)
 	       (make-connection (car selected-nodes) new-node)
-	       (incf (first *position*) 0.2)))))))
+	       (incf *position-x* 0.2))))
+      (repose))))
+
+;;
+;; evaluation
+;;
 
 (defun find-heads (node)
   "Find all tree-heads linked to node"
@@ -181,16 +230,17 @@
 					  (princ-to-string cant)))))))
 	  (find-heads node)))
 
-(eval (list (read-from-string "+") 
-	    (read-from-string "2")
-	    (read-from-string "5")))
+;(eval (list (read-from-string "+") 
+; 	     (read-from-string "2")
+;	     (read-from-string "5")))
+
 ;;
-;;
+;; main-screen routine
 ;;
 
 (defun set-mouse-position ()
-  (setf *mouse-x* (first *position*)
-	*mouse-y* (second *position*)))
+  (setf *mouse-x* *position-x*
+	*mouse-y* *position-y*))
 
 (defun main-screen (delta)
   "Update and render"
@@ -201,35 +251,36 @@
     (set-mouse-position))
   
   (if *mouse-left*
-      (let ((node (find-if #'node-in-focus *nodes*)))
+      (let ((node (find-if #'node-in-focus *nodes-at-screen*)))
 	(when node
 	  (incf (node-x node) (lerp *mouse-x* (node-x node) 0.3))
 	  (incf (node-y node) (lerp *mouse-y* (node-y node) 0.3))
-	  (let ((new-child (find-if #'mouse-at-node-p (remove node *nodes*))))
+	  (let ((new-child (find-if #'mouse-at-node-p
+				    (remove node *nodes-at-screen*))))
 	    (when new-child
 	      (make-connection node new-child)))))
-      (dolist (node *nodes*)
+      (dolist (node *nodes-at-screen*)
 	(setf (node-in-focus node) (mouse-at-node-p node))))
   
   ; draw
   (gl:clear :color-buffer-bit)
   (gl:scale (incf *real-zoom* (lerp *zoom* *real-zoom* 0.3))
 	    *real-zoom* 0)
-  (gl:translate (- (incf (first *real-position*)
-			 (lerp (first *position*)
-			       (first *real-position*) 0.3)))
-		(- (incf (second *real-position*)
-			 (lerp (second *position*)
-			       (second *real-position*)0.3)))
+  (gl:translate (- (incf *real-position-x*
+			 (lerp *position-x*
+			       *real-position-x* 0.3)))
+		(- (incf *real-position-y*
+			 (lerp *position-y*
+			       *real-position-y* 0.3)))
 		0)
 
   ; cross
   (gl:color 0.2 0.2 0.2)
-  (simple-cross (first *position*) (second *position*) 0.1)
+  (simple-cross *position-x* *position-y* 0.1)
 
   ; *nodes*
   (mapc #'draw-wires *nodes*)
-  (mapc #'draw-node *nodes*)
+  (mapc #'draw-node *nodes-at-screen*)
   
   ; gui
   (gl:load-identity)
@@ -243,10 +294,12 @@
 
 (defun press-mouse-left ()
   (setf *mouse-left* t)
-  (mapc (lambda (node sel)
-	  (setf (node-selected node) sel))
-	*nodes*
-	(mapcar #'mouse-at-node-p *nodes*)))
+  (dolist (node *nodes-at-screen*)
+    (setf (node-selected node) (mouse-at-node-p node))))
+
+;;
+;; init and input setup
+;;
 
 (defun main()
   "Init all stuff and define events"
@@ -265,6 +318,8 @@
 	(gl:blend-func :src-alpha :one-minus-src-alpha)
 	(resize-viewport *screen-width* *screen-height*)
 	(gl:clear-color 0.1 0.1 0.1 1)
+
+	(repose)
 
 	(with-event-loop (:method :poll)
 	  (:textinput   (:text text)
@@ -298,16 +353,20 @@
 			   (press-mouse-left))
 			  (:scancode-kp-4
 			   (setf *key-move* t)
-			   (incf (first *position*) -0.2))
+			   (incf *position-x* -0.2)
+			   (repose))
 			  (:scancode-kp-6
 			   (setf *key-move* t)
-			   (incf (first *position*) 0.2))
+			   (incf *position-x* 0.2)
+			   (repose))
 			  (:scancode-kp-8
 			   (setf *key-move* t)
-			   (incf (second *position*) 0.2))
+			   (incf *position-y* 0.2)
+			   (repose))
 			  (:scancode-kp-2
 			   (setf *key-move* t)
-			   (incf (second *position*) -0.2))))
+			   (incf *position-y* -0.2)
+			   (repose))))
 	  (:keyup       (:keysym keysym)
 			(case (scancode-symbol
 			       (scancode-value keysym))
@@ -328,17 +387,18 @@
 				 (+ (* (/ (- x half-width)
 					  half-width *zoom*)
 				       asp)
-				    (first *position*)))
+				    *position-x*))
 				*mouse-y*
 				(float
 				 (+ (/ (- y half-height)
 				       half-height *zoom* -1)
-				    (second *position*))))
+				    *position-y*)))
 			  (when *mouse-right*
-			    (incf (first  *position*)
+			    (incf *position-x*
 				  (/ xrel half-height *zoom* -1))
-			    (incf (second *position*)
-				  (/ yrel half-height *zoom*)))))
+			    (incf *position-y*
+				  (/ yrel half-height *zoom*))
+			    (repose))))
 	  (:mousebuttondown (:button button)
 			    (case button
 			      (1 (press-mouse-left))
@@ -348,7 +408,10 @@
 			      (1 (setf *mouse-left* nil))
 			      (3 (setf *mouse-right* nil))))
 	  (:mousewheel      (:y y)
-			    (incf *zoom* (* y 0.1)))
+			    (setf *zoom* (max (min (+ *zoom* (* y 0.1))
+						   2)
+					      0.1))
+			    (repose))
 			     
 	  (:idle        ()
 			(idler window))
@@ -358,7 +421,8 @@
 			       sdl2-ffi:+sdl-windowevent-size-changed+)
 			  (setf *screen-width* width
 				*screen-height* height)
-			  (resize-viewport width height)))
+			  (resize-viewport width height)
+			  (repose)))
 	  (:quit        ()
 			(sdl2-ttf:quit)
 			(clean-text-hash)
