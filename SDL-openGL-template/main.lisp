@@ -18,14 +18,27 @@
 
 (defun main-screen (delta)
   "Update and render"
+
+  (load-identity)
+  
   (incf *time* delta)
   (gl:clear :color-buffer-bit)
+  
   (gl:color 1 1 1)
   (text "this is simple sdl+opengl template" 0 0.8 0.05 0)
-  (gl:color 0.5 0 0)
-  (quad-shape 0 0 (* *time* 10) (sin *time*) (sin *time*))
-  (gl:color 1 1 1)
-  (simple-line 0.0 0.0 0.5 0.5))
+  
+  (let ((gap 0.7)
+	(step 0.1))
+    
+    (gl:color 0.5 0 0)
+    (loop for i from (- gap) to gap by step do
+	 (loop for j from (- gap) to gap by step do
+	      (quad-shape i j (* *time* 200 i j) 0.01 0.04)))
+
+    
+    (gl:color 1 1 1 0.2)
+    (loop for i from (- gap) to gap by step do
+	 (simple-line i gap i (- gap)))))
   
 (defun main()
   "Init all stuff and define events"
